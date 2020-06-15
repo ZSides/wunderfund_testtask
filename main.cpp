@@ -6,7 +6,7 @@ int main() {
     Server server;
     server.init();
     std::thread thread([&server]() {
-        server.echo();
+        server.run();
     });
     thread.detach();
     std::string action;
