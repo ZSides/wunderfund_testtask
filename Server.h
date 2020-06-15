@@ -6,25 +6,24 @@
 #include <string>
 #include <cstring>
 #include <arpa/inet.h>
+#include <time.h>
+#include "config.h"
+
 #ifndef WF_TEST_SERVER_H
 #define WF_TEST_SERVER_H
-
 
 class Server {
 public:
     Server();
-    int get_sock() const;
     void init();
-    void echo();
     void run();
+    int get_listener() const;
 private:
-    int sock, listener;
     struct sockaddr_in addr{};
     char buf[1024]{};
-    int bytes_read;
-
     fd_set readfds;
-    int max_sd, sd, activity, valread, addrlen, new_socket, max_clients, client_socket[64];
+    int listener, max_sd, sd, activity, valread, addrlen, new_socket, m_ptr, max_clients, client_socket[MAX_USERS];
+    time_t client_timestams[MAX_USERS];
 };
 
 

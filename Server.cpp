@@ -1,11 +1,11 @@
 #include "Server.h"
-int Server::get_sock() const { return sock; }
+int Server::get_listener() const {return listener; }
 Server::Server() {
-    sock = bytes_read = -1;
     listener = socket(AF_INET, SOCK_STREAM, 0);
-    max_clients = 64;
+    max_clients = MAX_USERS;
     for (int i = 0; i < max_clients; ++i) {
         client_socket[i] = 0;
+        client_timestams[i] = 0;
     }
 }
 void Server::init() {
@@ -17,7 +17,7 @@ void Server::init() {
     int enable = 1;
     setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(3428);
+    addr.sin_port = htons(27015);
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     if(bind(listener, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         perror("bind");
@@ -34,104 +34,75 @@ void Server::run() {
         FD_SET(listener, &readfds);
         max_sd = listener;
 
-        //add child sockets to set
-        for (int i = 0 ; i < max_clients ; i++) {
-            //socket descriptor
+        for (int i = 0; i < max_clients; i++) {
             sd = client_socket[i];
-
-            //if valid socket descriptor then add to read list
-            if(sd > 0)
-                FD_SET( sd , &readfds);
-
-            //highest file descriptor number, need it for the select function
-            if(sd > max_sd)
+            if (sd > 0) {
+                FD_SET(sd, &readfds);
+            }
+            if(sd > max_sd) {
                 max_sd = sd;
+            }
         }
-
-        //wait for an activity on one of the sockets , timeout is NULL ,
-        //so wait indefinitely
-        activity = select( max_sd + 1 , &readfds , NULL , NULL , NULL);
-
-        if ((activity < 0) && (errno!=EINTR))
-        {
+        activity = select( max_sd + 1, &readfds, NULL, NULL, NULL);
+        if (activity < 0 && errno!=EINTR) {
             printf("select error");
         }
-
-        //If something happened on the master socket ,
-        //then its an incoming connection
-        if (FD_ISSET(listener, &readfds))
-        {
-            if ((new_socket = accept(listener, (struct sockaddr *)&addr, (socklen_t*)&addrlen))<0)
-            {
+        if (FD_ISSET(listener, &readfds)) {
+            if ((new_socket = accept(listener, (struct sockaddr *)&addr, (socklen_t*)&addrlen))<0) {
                 perror("accept");
                 exit(EXIT_FAILURE);
             }
-
-            //inform user of socket number - used in send and receive commands
-            printf("New connection! socket fd: %d, ip: %s , port: %d\n" , new_socket , inet_ntoa(addr.sin_addr) , ntohs(addr.sin_port));
-
-            puts("Welcome message sent successfully");
-
-            //add new socket to array of sockets
-            for (int i = 0; i < max_clients; i++)
-            {
-                //if position is empty
-                if( client_socket[i] == 0 )
-                {
+            printf("New connection! socket fd: %d, ip: %s, port: %d\n", new_socket, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+            for (int i = 0; i < max_clients; i++) {
+                if(client_socket[i] == 0) {
                     client_socket[i] = new_socket;
-                    printf("Adding to list of sockets as %d\n" , i);
-
+                    printf("Adding to list of sockets as %d\n", i);
                     break;
                 }
             }
         }
 
-        //else its some IO operation on some other socket
-        for (int i = 0; i < max_clients; i++)
-        {
+        for (int i = 0; i < max_clients; i++) {
             sd = client_socket[i];
 
-            if (FD_ISSET( sd , &readfds))
-            {
-                //Check if it was for closing , and also read the
-                //incoming message
-                if ((valread = read( sd , buf, 1024)) == 0)
-                {
-                    //Somebody disconnected , get his details and print
+            if (FD_ISSET(sd, &readfds)) {
+                if ((valread = read( sd , buf, 1024)) == 0) {
                     getpeername(sd , (struct sockaddr*)&addr , \
                         (socklen_t*)&addrlen);
-                    printf("Host disconnected , ip %s , port %d \n" ,
+                    printf("Host disconnected. ip: %s, port: %d \n",
                            inet_ntoa(addr.sin_addr) , ntohs(addr.sin_port));
-
-                    //Close the socket and mark as 0 in list for reuse
                     close(sd);
                     client_socket[i] = 0;
                 }
-
-                    //Echo back the message that came in
-                else
-                {
-                    //set the string terminating NULL byte on the end
-                    //of the data read
+                else {
+                    m_ptr = 0;
+                    for (int j = 0; j < valread; ++j) {
+                        if ((int)buf[j] < 32 || (int)buf[j] == 127) {
+                            m_ptr++;
+                        } else if (m_ptr > 0) {
+                            buf[j - m_ptr] = buf[j];
+                        }
+                    }
+                    valread -= m_ptr - 1;
+                    buf[valread - 1] = '\n';
                     buf[valread] = '\0';
-                    send(sd, buf, strlen(buf) , 0 );
+                    if (strlen(buf) > 180) {
+                        send(client_socket[i], ERROR_MSG_LEN, strlen(ERROR_MSG_LEN), 0);
+                    } else if (difftime(time(nullptr), client_timestams[i]) <= 1) {
+                        send(client_socket[i], ERROR_MSG_TIME, strlen(ERROR_MSG_TIME), 0);
+                    } else {
+                        for (int j = 0; j < max_clients; ++j) {
+                            if (client_socket[j] == 0) {
+                                break;
+                            }
+                            if (i != j) {
+                                send(client_socket[j], buf,strlen(buf),0);
+                            }
+                        }
+                    }
+                    client_timestams[i] = time(nullptr);
                 }
             }
         }
-    }
-}
-void Server::echo() {
-    while(true) {
-        sock = accept(listener, nullptr, nullptr);
-        if(sock < 0) {
-            perror("accept");
-            exit(EXIT_FAILURE);
-        }
-        while(true) {
-            bytes_read = recv(sock, buf, 1024, 0);
-            if(bytes_read <= 0) break;
-            send(sock, buf, bytes_read, 0);
-        }
-        close(sock);
     }
 }

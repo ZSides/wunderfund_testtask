@@ -13,7 +13,7 @@ int main() {
     while(true) {
         std::cin >> action;
         if (action == "quit") {
-            close(server.get_sock());
+            close(server.get_listener());
             return 0;
         }
     }
