@@ -1,12 +1,22 @@
 #include "Server.h"
 int Server::get_listener() const { return listener; }
 Server::Server() {
+    max_sd = sd = activity = valread = addrlen = new_socket = m_ptr = 0;
     listener = socket(AF_INET, SOCK_STREAM, 0);
     max_clients = SERVER_MAX_USERS;
     for (int i = 0; i < max_clients; ++i) {
         client_socket[i] = 0;
         client_timestams[i] = 0;
     }
+}
+Server::~Server() {
+    for (int i : client_socket) {
+        if(i == 0) {
+            break;
+        }
+        close(i);
+    }
+    close(listener);
 }
 void Server::init() {
     if(listener < 0) {
