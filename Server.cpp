@@ -1,8 +1,8 @@
 #include "Server.h"
-int Server::get_listener() const {return listener; }
+int Server::get_listener() const { return listener; }
 Server::Server() {
     listener = socket(AF_INET, SOCK_STREAM, 0);
-    max_clients = MAX_USERS;
+    max_clients = SERVER_MAX_USERS;
     for (int i = 0; i < max_clients; ++i) {
         client_socket[i] = 0;
         client_timestams[i] = 0;
@@ -17,7 +17,7 @@ void Server::init() {
     int enable = 1;
     setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(27015);
+    addr.sin_port = htons(SERVER_PORT);
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     if(bind(listener, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         perror("bind");
@@ -44,7 +44,7 @@ void Server::run() {
             }
         }
         activity = select( max_sd + 1, &readfds, NULL, NULL, NULL);
-        if (activity < 0 && errno!=EINTR) {
+        if (activity < 0 && errno != EINTR) {
             printf("select error");
         }
         if (FD_ISSET(listener, &readfds)) {
@@ -66,18 +66,16 @@ void Server::run() {
             sd = client_socket[i];
 
             if (FD_ISSET(sd, &readfds)) {
-                if ((valread = read( sd , buf, 1024)) == 0) {
-                    getpeername(sd , (struct sockaddr*)&addr , \
-                        (socklen_t*)&addrlen);
-                    printf("Host disconnected. ip: %s, port: %d \n",
-                           inet_ntoa(addr.sin_addr) , ntohs(addr.sin_port));
+                if ((valread = read(sd, buf,1024)) == 0) {
+                    getpeername(sd, (struct sockaddr*)&addr, (socklen_t*)&addrlen);
+                    printf("Host disconnected. ip: %s, port: %d \n", inet_ntoa(addr.sin_addr) , ntohs(addr.sin_port));
                     close(sd);
                     client_socket[i] = 0;
                 }
                 else {
                     m_ptr = 0;
                     for (int j = 0; j < valread; ++j) {
-                        if ((int)buf[j] < 32 || (int)buf[j] == 127) {
+                        if (buf[j] < 32 || buf[j] == 127) {
                             m_ptr++;
                         } else if (m_ptr > 0) {
                             buf[j - m_ptr] = buf[j];

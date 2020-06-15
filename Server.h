@@ -22,8 +22,8 @@ private:
     struct sockaddr_in addr{};
     char buf[1024]{};
     fd_set readfds;
-    int listener, max_sd, sd, activity, valread, addrlen, new_socket, m_ptr, max_clients, client_socket[MAX_USERS];
-    time_t client_timestams[MAX_USERS];
+    int listener, max_sd, sd, activity, valread, addrlen, new_socket, m_ptr, max_clients, client_socket[SERVER_MAX_USERS];
+    time_t client_timestams[SERVER_MAX_USERS];
 };
 
 
