@@ -1,25 +1,13 @@
 #include "Server.h"
+#include <thread>
+#include <string>
+#include <iostream>
 int main() {
     Server server;
-    auto run_server = [server]() {
-        while(true) {
-            sock = accept(listener, NULL, NULL);
-            if(sock < 0) {
-                perror("accept");
-                exit(3);
-            }
-
-            while(true) {
-                bytes_read = recv(sock, buf, 1024, 0);
-                if(bytes_read <= 0) break;
-                std::cout << buf << '\n';
-                //send(sock, buf, bytes_read, 0);
-            }
-
-            close(sock);
-        }
-    };
-    std::thread thread(run_server);
+    server.init();
+    std::thread thread([&server]() {
+        server.echo();
+    });
     thread.detach();
     std::string action;
     while(true) {
@@ -29,5 +17,4 @@ int main() {
             return 0;
         }
     }
-    return 0;
 }
